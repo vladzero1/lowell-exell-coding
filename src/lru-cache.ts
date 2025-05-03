@@ -27,7 +27,7 @@ type CacheNode<T> = {
   prev: CacheNode<T> | null;
   key: string;
   value: T;
-  ttl: number;
+  date: number;
 }
 
 
@@ -37,7 +37,6 @@ export function createLRUCacheProvider<T>({
 }: LRUCacheProviderOptions): LRUCacheProvider<T> {
   const valueMap = new Map<string, CacheNode<T>>()
 
-  let NodeLinkList: CacheNode<T> | null = null
   let head: CacheNode<T> | null = null // this will be MRU
   let tail: CacheNode<T> | null = null // this will be the LRU
   const detach = (node: CacheNode<T>) => {
@@ -101,7 +100,7 @@ export function createLRUCacheProvider<T>({
       prev: potentialPrev,
       key: key,
       value: value,
-      ttl: ttl
+      date: Date.now(),
     }
     if (potentialPrev) {
       potentialPrev.next = newNode
@@ -115,10 +114,26 @@ export function createLRUCacheProvider<T>({
     return newNode
   }
 
+  const checkTTLAndRemove = (node: CacheNode<T>): boolean => {
+    if (node) {
+      const timeDiff = Date.now() - node.date
+      if (timeDiff >= ttl) {
+        removeNode(node)
+        return true
+      }
+    }
+
+    return false
+  }
+
   return {
     has: (key: string): boolean => {
       const node = valueMap.get(key)
       if (node) {
+        const isRemoved = checkTTLAndRemove(node)
+        if (isRemoved) {
+          return false
+        }
         // we need to remove old node and register new node to ensure the ttl reset and getting the new MRU node
         removeNode(node)
         registerNewNode(node.key, node.value)
@@ -130,6 +145,10 @@ export function createLRUCacheProvider<T>({
     get: (key: string): T | undefined => {
       const node = valueMap.get(key)
       if (node) {
+        const isRemoved = checkTTLAndRemove(node)
+        if (isRemoved) {
+          return undefined
+        }
         // we need to remove old node and register new node to ensure the ttl reset and getting the new MRU node
         removeNode(node)
         registerNewNode(node.key, node.value)
@@ -139,13 +158,14 @@ export function createLRUCacheProvider<T>({
       return undefined;
     },
     set: (key: string, value: T) => {
+
       // handling set data with same value
       // will remove the node with that value
-      const currNode = valueMap.get(key)
-      if (currNode) {
-        removeNode(currNode)
+      const node = valueMap.get(key)
+      if (node) {
+        removeNode(node)
       }
-
+      console.log("set ", key)
       registerNewNode(key, value)
       return;
     },
