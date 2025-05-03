@@ -70,19 +70,7 @@ export function createLRUCacheProvider<T>({
 
   const checkAndRemoveLRUNode = () => {
     if (valueMap.size === itemLimit && tail) {
-      valueMap.delete(tail.key)
-      // handling only 1 node exist
-      if (head && tail.key === head.key) {
-        head = null
-      }
-
-      if (tail.next) {
-        tail.next.prev = null
-      }
-
-      // need to remove the connection to data that is actually used
-      detach(tail)
-      tail = tail.next
+      removeNode(tail)
     }
   }
 
@@ -158,6 +146,9 @@ export function createLRUCacheProvider<T>({
       return undefined;
     },
     set: (key: string, value: T) => {
+      if(tail){
+        checkTTLAndRemove(tail)
+      }
 
       // handling set data with same value
       // will remove the node with that value
@@ -165,7 +156,7 @@ export function createLRUCacheProvider<T>({
       if (node) {
         removeNode(node)
       }
-      console.log("set ", key)
+
       registerNewNode(key, value)
       return;
     },
